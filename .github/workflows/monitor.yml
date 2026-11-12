@@ -23,24 +23,6 @@ jobs:
         run: python3 monitor.py
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-
-      - name: 读取邮件正文
-        id: read_body
-        run: |
-          content=$(cat mail_body.txt)
-          echo "content<<EOF" >> $GITHUB_OUTPUT
-          echo "$content" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: 发送QQ邮件
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.qq.com
-          server_port: 465
-          secure: true
-          username: ${{ secrets.EMAIL_USER }}
-          password: ${{ secrets.EMAIL_PASS }}
-          subject: GitHub新项目监控日报
-          to: ${{ secrets.EMAIL_TO }}
-          from: GitHub监控机器人
-          body: ${{ steps.read_body.outputs.content }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
