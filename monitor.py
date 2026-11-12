@@ -1,10 +1,29 @@
 import requests
 import os
+import smtplib
+from email.mime.text import MIMEText
 
 # ========== 配置区 ==========
 SEARCH_QUERY = "llm agent stars:>50 created:>2026-01-01"
 FETCH_COUNT = 30
+
+SMTP_SERVER = "smtp.qq.com"
+SMTP_PORT = 465
+SMTP_USER = os.getenv("EMAIL_USER")
+SMTP_PASS = os.getenv("EMAIL_PASS")
+MAIL_TO = os.getenv("EMAIL_TO")
+MAIL_SUBJECT = "GitHub新项目监控日报"
 # ============================
+
+def send_email(text_content):
+    msg = MIMEText(text_content, "plain", "utf-8")
+    msg["Subject"] = MAIL_SUBJECT
+    msg["From"] = SMTP_USER
+    msg["To"] = MAIL_TO
+    with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT) as server:
+        server.login(SMTP_USER, SMTP_PASS)
+        server.send_message(msg)
+    print("✅ 邮件发送成功")
 
 def main():
     gh_token = os.getenv("GH_TOKEN")
@@ -28,11 +47,9 @@ def main():
 
     items = data.get("items", [])
     if not items:
-        with open("mail_body.txt", "w", encoding="utf-8") as f:
-            f.write("今日无符合条件的新项目")
+        send_email("今日无符合条件的新项目")
         return
 
-    # 读取历史记录
     old_ids = set()
     try:
         with open("last.txt", "r", encoding="utf-8") as f:
@@ -42,12 +59,10 @@ def main():
 
     new_items = [i for i in items if str(i["id"]) not in old_ids]
 
-    # 保存本次ID
     with open("last.txt", "w", encoding="utf-8") as f:
         for i in items:
             f.write(f"{i['id']}\n")
 
-    # 生成纯文本正文
     lines = []
     lines.append("GitHub新项目监控日报")
     lines.append("-" * 30)
@@ -67,14 +82,13 @@ def main():
     else:
         lines.append("今日没有新增匹配项目")
 
-    content = "\n".join(lines)
-    with open("mail_body.txt", "w", encoding="utf-8") as f:
-        f.write(content)
-
+    mail_content = "\n".join(lines)
     print("===== 即将发送的邮件正文 =====")
-    print(content)
+    print(mail_content)
     print("===== 正文结束 =====")
     print(f"执行完成，新增项目数: {len(new_items)}")
+
+    send_email(mail_content)
 
 if __name__ == "__main__":
     main()
