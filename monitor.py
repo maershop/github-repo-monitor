@@ -1,7 +1,7 @@
 import os
 import requests
 
-SEARCH_QUERY = "llm agent stars:>50 created:>2026-01-01"
+SEARCH_QUERY = os.getenv("SEARCH_QUERY")
 FETCH_COUNT = 30
 GH_TOKEN = os.getenv("GH_TOKEN")
 
