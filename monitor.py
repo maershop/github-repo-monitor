@@ -38,7 +38,7 @@ def main():
         with open("last.txt", "r", encoding="utf-8") as f:
             old_ids = set(line.strip() for line in f)
     except FileNotFoundError:
-        pass
+        print("【提示】首次运行，创建last.txt，本次不推送新增")
 
     new_items = [i for i in items if str(i["id"]) not in old_ids]
 
@@ -67,9 +67,13 @@ def main():
     else:
         lines.append("今日没有新增匹配项目")
 
+    content = "\n".join(lines)
     with open("mail_body.txt", "w", encoding="utf-8") as f:
-        f.write("\n".join(lines))
+        f.write(content)
 
+    print("===== 即将发送的邮件正文 =====")
+    print(content)
+    print("===== 正文结束 =====")
     print(f"执行完成，新增项目数: {len(new_items)}")
 
 if __name__ == "__main__":
