@@ -1,7 +1,7 @@
 name: GitHub新项目监控 邮件推送
 on:
   schedule:
-    - cron: '0 1 * * *' # UTC 01点 = 北京时间早上9点
+    - cron: '0 1 * * *' # UTC凌晨1点 = 北京时间早上9点
   workflow_dispatch:
 
 jobs:
@@ -11,24 +11,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 配置Python环境
+      - name: 配置Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
-      - name: 安装依赖
-        run: pip install requests
+      - name: 安装requests
+        run: python3 -m pip install requests
 
-      - name: Python搜索并生成邮件内容
-        shell: python
+      - name: 执行Python监控脚本
         run: |
+          python3 << 'EOF'
           import requests
           import os
-
-          # ========= 修改这里的搜索条件 =========
+          # ========= 修改搜索条件 =========
           query = "topic:llm-agent stars:>100 created:>2026-01-01"
-          # =====================================
-          headers = {"Authorization": f"token:{os.getenv('GH_TOKEN')}"}
+          # =================================
+          gh_token = os.getenv("GH_TOKEN")
+          headers = {"Authorization": f"token:{gh_token}"}
           url = f"https://api.github.com/search/repositories?q={query}&sort=created&order=desc&per_page=30"
           resp = requests.get(url, headers=headers)
           data = resp.json()
@@ -43,11 +43,10 @@ jobs:
 
           new_repos = [item for item in items if str(item["id"]) not in old_ids]
 
-          # 保存本次仓库ID
+          # 保存本次ID
           with open("last.txt", "w", encoding="utf-8") as f:
             f.write("\n".join([str(x["id"]) for x in items]))
 
-          # 组装markdown正文
           if new_repos:
             body_text = "# 📢 GitHub新项目日报\n\n"
             for repo in new_repos:
@@ -59,9 +58,9 @@ jobs:
           else:
             body_text = "✅ 今日没有匹配条件的新项目"
 
-          # 写入文件
           with open("mail_body.txt", "w", encoding="utf-8") as f:
             f.write(body_text)
+          EOF
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
@@ -73,7 +72,8 @@ jobs:
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.qq.com
-          server_port: 587
+          server_port: 465
+          secure: true   # 465端口必须开启secure=true！！
           username: ${{ secrets.EMAIL_USER }}
           password: ${{ secrets.EMAIL_PASS }}
           subject: GitHub新项目监控日报
