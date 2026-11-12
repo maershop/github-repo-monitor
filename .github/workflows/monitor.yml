@@ -1,23 +1,24 @@
 name: GitHub新项目监控 邮件推送
 on:
+  workflow_dispatch:
   schedule:
     - cron: '0 1 * * *'
-  workflow_dispatch:
 
 jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Debug 查看python命令
+      - name: Show debug info
         run: |
+          echo "PATH=$PATH"
           which python3
           python3 --version
           ls -la
@@ -25,16 +26,16 @@ jobs:
       - name: Install requests
         run: python3 -m pip install requests
 
-      - name: Run monitor script
+      - name: Run script
         run: python3 monitor.py
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
-      - name: Read mail body
+      - name: Export mail body
         id: read_body
         run: echo "BODY=$(cat mail_body.txt)" >> $GITHUB_OUTPUT
 
-      - name: Send QQ Email
+      - name: Send email
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.qq.com
