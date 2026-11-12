@@ -2,7 +2,7 @@ name: GitHub新项目监控 邮件推送
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 12 * * *'
+    - cron: '0 12 * * *' # UTC12点 = 北京时间20点，你可以按需调整
 
 jobs:
   scan:
@@ -24,10 +24,14 @@ jobs:
         run: python3 monitor.py
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          # ========== 关键词在这里改 ==========
-          SEARCH_QUERY: "llm agent stars:>50 created:>2026-01-01"
+          # ========== 所有关键词在这里修改 ==========
+          SEARCH_QUERY_AGENT: "llm agent stars:>50 created:>2026-01-01"
+          SEARCH_QUERY_DOC_PIPELINE: "web scraper document parser text cleaning rag pipeline stars:>80 language:python"
+          SEARCH_QUERY_TABLE: "csv excel data cleaning table parse agent stars:>80 language:python"
+          SEARCH_QUERY_RAG_KB: "rag knowledge base ingestion document loader stars:>80 language:python"
+          SEARCH_QUERY_SCRIPT: "content generation short video script agent stars:>80 language:python"
 
-      - name: 发送QQ邮件（dawidd6/action-send-mail，社区成熟nodemailer）
+      - name: 发送QQ邮件
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.qq.com
