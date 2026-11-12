@@ -24,10 +24,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
-      - name: 读取邮件内容
-        id: read_body
-        run: echo "BODY=$(cat mail_body.txt)" >> $GITHUB_OUTPUT
-
       - name: 发送QQ邮件
         uses: dawidd6/action-send-mail@v3
         with:
@@ -39,4 +35,4 @@ jobs:
           subject: GitHub新项目监控日报
           to: ${{ secrets.EMAIL_TO }}
           from: GitHub监控机器人
-          body: ${{ steps.read_body.outputs.BODY }}
+          body_file: mail_body.txt
