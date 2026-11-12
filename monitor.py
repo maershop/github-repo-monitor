@@ -1,7 +1,7 @@
 import requests
 import os
 import smtplib
-from email.mime.text import MIMEText
+from email.message import EmailMessage
 
 # ========== 配置区 ==========
 SEARCH_QUERY = "llm agent stars:>50 created:>2026-01-01"
@@ -16,7 +16,8 @@ MAIL_SUBJECT = "GitHub新项目监控日报"
 # ============================
 
 def send_email(text_content):
-    msg = MIMEText(text_content, "plain", "utf-8")
+    msg = EmailMessage()
+    msg.set_content(text_content)
     msg["Subject"] = MAIL_SUBJECT
     msg["From"] = SMTP_USER
     msg["To"] = MAIL_TO
