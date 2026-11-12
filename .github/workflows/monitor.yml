@@ -6,13 +6,13 @@ on:
 
 jobs:
   scan:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -32,7 +32,7 @@ jobs:
           SEARCH_QUERY_SCRIPT: "content generation short video script agent stars:>80 language:python"
 
       - name: 发送QQ邮件
-        uses: dawidd6/action-send-mail@v3
+        uses: dawidd6/action-send-mail@v5
         with:
           server_address: smtp.qq.com
           server_port: 465
