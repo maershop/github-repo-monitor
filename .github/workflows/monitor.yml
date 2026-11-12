@@ -8,7 +8,7 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout 拉取代码
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Python
@@ -16,19 +16,25 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install requests
-        run: python -m pip install requests
+      - name: Debug 查看python命令
+        run: |
+          which python3
+          python3 --version
+          ls -la
 
-      - name: Run python script
-        run: python monitor.py
+      - name: Install requests
+        run: python3 -m pip install requests
+
+      - name: Run monitor script
+        run: python3 monitor.py
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
-      - name: Read mail content
+      - name: Read mail body
         id: read_body
         run: echo "BODY=$(cat mail_body.txt)" >> $GITHUB_OUTPUT
 
-      - name: Send email
+      - name: Send QQ Email
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.qq.com
