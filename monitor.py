@@ -1,55 +1,104 @@
 import os
 import requests
 
-SEARCH_QUERY = os.getenv("SEARCH_QUERY")
-FETCH_COUNT = 30
 GH_TOKEN = os.getenv("GH_TOKEN")
+FETCH_COUNT = 30
 
-def main():
+# 任务配置：从环境变量读取，只配置名称、环境变量名、历史文件名
+WATCH_TASKS = [
+    {
+        "name": "一、LLM / Agent 方向",
+        "env_key": "SEARCH_QUERY_AGENT",
+        "history_file": "last_agent.txt"
+    },
+    {
+        "name": "二、资料采集清洗整理（网页/PDF文档RAG管线）",
+        "env_key": "SEARCH_QUERY_DOC_PIPELINE",
+        "history_file": "last_doc_pipeline.txt"
+    },
+    {
+        "name": "三、Excel/CSV表格、位次数据清洗",
+        "env_key": "SEARCH_QUERY_TABLE",
+        "history_file": "last_table.txt"
+    },
+    {
+        "name": "四、RAG知识库构建、文档入库",
+        "env_key": "SEARCH_QUERY_RAG_KB",
+        "history_file": "last_rag_kb.txt"
+    },
+    {
+        "name": "五、短视频/直播文案生成Agent",
+        "env_key": "SEARCH_QUERY_SCRIPT",
+        "history_file": "last_script_agent.txt"
+    }
+]
+
+def fetch_repos(query):
     headers = {
         "Authorization": f"token {GH_TOKEN}",
         "Accept": "application/vnd.github.v3+json"
     }
     url = (
         f"https://api.github.com/search/repositories"
-        f"?q={SEARCH_QUERY}&sort=created&order=desc&per_page={FETCH_COUNT}"
+        f"?q={query}&sort=created&order=desc&per_page={FETCH_COUNT}"
     )
     resp = requests.get(url, headers=headers, timeout=30)
     resp.raise_for_status()
-    items = resp.json().get("items", [])
+    return resp.json().get("items", [])
 
-    old_ids = set()
+def load_old_ids(path):
     try:
-        with open("last.txt", "r", encoding="utf-8") as f:
-            old_ids = {line.strip() for line in f}
+        with open(path, "r", encoding="utf-8") as f:
+            return {line.strip() for line in f if line.strip()}
     except FileNotFoundError:
-        print("首次运行，记录仓库ID，本次标记初始化")
+        return set()
 
-    new_items = [repo for repo in items if str(repo["id"]) not in old_ids]
-
-    # 更新历史记录
-    with open("last.txt", "w", encoding="utf-8") as f:
+def save_ids(path, items):
+    with open(path, "w", encoding="utf-8") as f:
         for repo in items:
             f.write(f"{repo['id']}\n")
 
-    lines = ["GitHub新项目监控日报", "-" * 30, ""]
-    if new_items:
-        for idx, repo in enumerate(new_items, start=1):
+def render_section(task_name, new_items):
+    lines = [task_name, "-" * 30, ""]
+    if not new_items:
+        lines.append("  今日无新增")
+    else:
+        for idx, repo in enumerate(new_items, 1):
             name = repo["full_name"]
             star = repo["stargazers_count"]
             lang = repo.get("language") or "未标注"
             desc = repo.get("description") or "无简介"
             link = repo["html_url"]
             lines.append(f"{idx}. {name}  ⭐{star}")
-            lines.append(f"语言：{lang}")
-            lines.append(f"简介：{desc}")
-            lines.append(f"链接：{link}")
+            lines.append(f"   语言：{lang}")
+            lines.append(f"   简介：{desc}")
+            lines.append(f"   链接：{link}")
             lines.append("")
-    else:
-        lines.append("今日没有新增匹配项目")
+    lines.append("")
+    return lines
 
-    content = "\n".join(lines)
-    # 输出到action output，给后面邮件action读取
+def main():
+    if not GH_TOKEN:
+        print("错误：GH_TOKEN 未配置")
+        exit(1)
+
+    all_lines = ["GitHub新项目监控日报", "=" * 40, ""]
+
+    for task in WATCH_TASKS:
+        query = os.getenv(task["env_key"])
+        if not query:
+            all_lines.append(f'{task["name"]}：未配置搜索关键词\n')
+            continue
+        items = fetch_repos(query)
+        old_ids = load_old_ids(task["history_file"])
+        new_items = [r for r in items if str(r["id"]) not in old_ids]
+        save_ids(task["history_file"], items)
+        all_lines.extend(render_section(task["name"], new_items))
+
+    content = "\n".join(all_lines)
+    print("===== 邮件正文 =====")
+    print(content)
+
     with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
         f.write(f"mail_body<<EOF\n{content}\nEOF\n")
 
