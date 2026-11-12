@@ -1,35 +1,33 @@
 name: GitHub新项目监控 邮件推送
 on:
   schedule:
-    - cron: '0 1 * * *' # UTC时间，01点执行，对应国内早上9点
-  workflow_dispatch: # 支持网页手动点运行测试
+    - cron: '0 1 * * *' # UTC凌晨1点 = 北京时间早上9点
+  workflow_dispatch:
 
 jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout 拉取仓库
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 安装Python依赖
+      - name: 安装依赖
         run: pip install requests
 
-      - name: 执行搜索，生成邮件内容
-        id: scan_task
+      - name: Python搜索并生成邮件内容
         run: |
           import requests
           import os
 
-          # ========== 在这里修改你的搜索条件 ==========
+          # ========= 修改这里的搜索条件 =========
           query = "topic:llm-agent stars:>100 created:>2026-01-01"
-          # ===========================================
+          # =====================================
           headers = {"Authorization": f"token:{os.getenv('GH_TOKEN')}"}
           url = f"https://api.github.com/search/repositories?q={query}&sort=created&order=desc&per_page=30"
           resp = requests.get(url, headers=headers)
           data = resp.json()
           items = data.get("items", [])
 
-          # 读取上次记录
           old_ids = set()
           try:
             with open("last.txt", "r", encoding="utf-8") as f:
@@ -39,11 +37,11 @@ jobs:
 
           new_repos = [item for item in items if str(item["id"]) not in old_ids]
 
-          # 保存本次仓库id
+          # 保存本次仓库ID
           with open("last.txt", "w", encoding="utf-8") as f:
             f.write("\n".join([str(x["id"]) for x in items]))
 
-          # 组装邮件正文
+          # 组装markdown正文
           if new_repos:
             body_text = "# 📢 GitHub新项目日报\n\n"
             for repo in new_repos:
@@ -55,15 +53,15 @@ jobs:
           else:
             body_text = "✅ 今日没有匹配条件的新项目"
 
-          # 输出给后续步骤
-          print(f"body={body_text}")
+          # 写入文件，给后面步骤读取
           with open("mail_body.txt", "w", encoding="utf-8") as f:
             f.write(body_text)
-          echo "BODY<<EOF" >> $GITHUB_OUTPUT
-          echo "$body_text" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+      - name: 读取邮件正文
+        id: read_body
+        run: echo "BODY=$(cat mail_body.txt)" >> $GITHUB_OUTPUT
 
       - name: 发送QQ邮件
         uses: dawidd6/action-send-mail@v3
@@ -75,4 +73,4 @@ jobs:
           subject: GitHub新项目监控日报
           to: ${{ secrets.EMAIL_TO }}
           from: GitHub监控机器人
-          body: ${{ steps.scan_task.outputs.BODY }}
+          body: ${{ steps.read_body.outputs.BODY }}
