@@ -1,7 +1,7 @@
 name: GitHub新项目监控 邮件推送
 on:
   schedule:
-    - cron: '0 1 * * *' # UTC凌晨1点 = 北京时间早上9点
+    - cron: '0 1 * * *' # UTC 01点 = 北京时间早上9点
   workflow_dispatch:
 
 jobs:
@@ -11,10 +11,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: 配置Python环境
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
       - name: 安装依赖
         run: pip install requests
 
       - name: Python搜索并生成邮件内容
+        shell: python
         run: |
           import requests
           import os
@@ -53,7 +59,7 @@ jobs:
           else:
             body_text = "✅ 今日没有匹配条件的新项目"
 
-          # 写入文件，给后面步骤读取
+          # 写入文件
           with open("mail_body.txt", "w", encoding="utf-8") as f:
             f.write(body_text)
         env:
