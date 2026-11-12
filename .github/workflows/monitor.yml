@@ -2,7 +2,7 @@ name: GitHub新项目监控 邮件推送
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 1 * * *'
+    - cron: '0 12 * * *'
 
 jobs:
   scan:
@@ -24,6 +24,8 @@ jobs:
         run: python3 monitor.py
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          # ========== 关键词在这里改 ==========
+          SEARCH_QUERY: "llm agent stars:>50 created:>2026-01-01"
 
       - name: 发送QQ邮件（dawidd6/action-send-mail，社区成熟nodemailer）
         uses: dawidd6/action-send-mail@v3
