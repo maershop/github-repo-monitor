@@ -8,21 +8,32 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout 拉取仓库
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 配置Python环境
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: 安装依赖
+      - name: Install requests
         run: python3 -m pip install requests
 
-      - name: 执行监控脚本
+      - name: 拉取仓库数据，生成邮件正文
+        id: gen_content
         run: python3 monitor.py
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          EMAIL_USER: ${{ secrets.EMAIL_USER }}
-          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
-          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+
+      - name: 发送QQ邮件（dawidd6/action-send-mail，社区成熟nodemailer）
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.qq.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.EMAIL_USER }}
+          password: ${{ secrets.EMAIL_PASS }}
+          subject: GitHub新项目监控日报
+          to: ${{ secrets.EMAIL_TO }}
+          from: GitHub监控 <${{ secrets.EMAIL_USER }}>
+          body: ${{ steps.gen_content.outputs.mail_body }}
