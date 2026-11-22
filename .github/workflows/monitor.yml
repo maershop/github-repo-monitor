@@ -11,7 +11,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          persist-credentials: true # 保证能写回历史txt文件
+          persist-credentials: true
 
       - name: Setup Python
         uses: actions/setup-python@v6
@@ -26,7 +26,15 @@ jobs:
         run: python3 monitor.py
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          # 不再在这里写SEARCH_QUERY_*，自动读取仓库Repository variables
+          SEARCH_QUERY_AGENT: ${{ vars.SEARCH_QUERY_AGENT }}
+          SEARCH_QUERY_DOC_PIPELINE: ${{ vars.SEARCH_QUERY_DOC_PIPELINE }}
+          SEARCH_QUERY_TABLE: ${{ vars.SEARCH_QUERY_TABLE }}
+          SEARCH_QUERY_RAG_KB: ${{ vars.SEARCH_QUERY_RAG_KB }}
+          SEARCH_QUERY_SCRIPT: ${{ vars.SEARCH_QUERY_SCRIPT }}
+          SEARCH_QUERY_WEB_DESIGN: ${{ vars.SEARCH_QUERY_WEB_DESIGN }}
+          SEARCH_QUERY_EDUCATION: ${{ vars.SEARCH_QUERY_EDUCATION }}
+          SEARCH_QUERY_LIVE_TOOLS: ${{ vars.SEARCH_QUERY_LIVE_TOOLS }}
+          SEARCH_QUERY_OFFICE_AUTO: ${{ vars.SEARCH_QUERY_OFFICE_AUTO }}
 
       - name: 发送QQ邮件
         uses: dawidd6/action-send-mail@v5
@@ -41,11 +49,14 @@ jobs:
           from: GitHub监控 <${{ secrets.EMAIL_USER }}>
           body: ${{ steps.gen_content.outputs.mail_body }}
 
-      # 新增：把历史记录txt文件提交回仓库，持久化，防止重复告警！【非常关键，原来yml缺失这一步】
       - name: Commit & Push 历史记录文件
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add *.txt
-          git diff --quiet && git diff --staged --quiet || git commit -m "auto update repo history id"
-          git push
+          if ls *.txt 1> /dev/null 2>&1; then
+            git add *.txt
+            git diff --quiet && git diff --staged --quiet || git commit -m "auto update repo history id"
+            git push
+          else
+            echo "暂无历史txt文件，跳过提交"
+          fi
