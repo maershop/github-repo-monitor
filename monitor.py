@@ -3,11 +3,20 @@ import requests
 
 GH_TOKEN = os.getenv("GH_TOKEN")
 FETCH_COUNT = 30
+# star 区间统一阈值
+MIN_STAR = 30
+MAX_STAR = 2500
 
-# 任务配置：从环境变量读取，只配置名称、环境变量名、历史文件名
+# 黑名单：简介、仓库名命中下面任意词直接跳过（小写匹配）
+BLACKLIST_KEYWORDS = {
+    "短剧", "红果", "解析", "爬虫", "抓取", "破解", "vip解析",
+    "影视解析", "视频抓取", "douyin抓取", "tiktok爬虫"
+}
+
+# 任务配置：新增赛道，对齐你要的方向
 WATCH_TASKS = [
     {
-        "name": "一、LLM / Agent 方向",
+        "name": "一、LLM / Agent 智能体方向",
         "env_key": "SEARCH_QUERY_AGENT",
         "history_file": "last_agent.txt"
     },
@@ -30,8 +39,43 @@ WATCH_TASKS = [
         "name": "五、短视频/直播文案生成Agent",
         "env_key": "SEARCH_QUERY_SCRIPT",
         "history_file": "last_script_agent.txt"
+    },
+    {
+        "name": "六、网站、前端、CMS、设计工具",
+        "env_key": "SEARCH_QUERY_WEB_DESIGN",
+        "history_file": "last_web_design.txt"
+    },
+    {
+        "name": "七、开源教育平台、志愿/题库系统",
+        "env_key": "SEARCH_QUERY_EDUCATION",
+        "history_file": "last_education.txt"
+    },
+    {
+        "name": "八、新媒体直播工具（提词器、字幕、直播看板）",
+        "env_key": "SEARCH_QUERY_LIVE_TOOLS",
+        "history_file": "last_live_tools.txt"
+    },
+    {
+        "name": "九、自动化办公、PDF/OCR/RPA",
+        "env_key": "SEARCH_QUERY_OFFICE_AUTO",
+        "history_file": "last_office_auto.txt"
     }
 ]
+
+
+def is_blacklisted(repo) -> bool:
+    """黑名单过滤，仓库全名 + description小写匹配"""
+    text = f"{repo['full_name']} {repo.get('description','')}".lower()
+    for kw in BLACKLIST_KEYWORDS:
+        if kw in text:
+            return True
+    return False
+
+
+def star_in_range(repo) -> bool:
+    st = repo["stargazers_count"]
+    return MIN_STAR <= st <= MAX_STAR
+
 
 def fetch_repos(query):
     headers = {
@@ -46,6 +90,7 @@ def fetch_repos(query):
     resp.raise_for_status()
     return resp.json().get("items", [])
 
+
 def load_old_ids(path):
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -53,10 +98,12 @@ def load_old_ids(path):
     except FileNotFoundError:
         return set()
 
+
 def save_ids(path, items):
     with open(path, "w", encoding="utf-8") as f:
         for repo in items:
             f.write(f"{repo['id']}\n")
+
 
 def render_section(task_name, new_items):
     lines = [task_name, "-" * 30, ""]
@@ -77,6 +124,7 @@ def render_section(task_name, new_items):
     lines.append("")
     return lines
 
+
 def main():
     if not GH_TOKEN:
         print("错误：GH_TOKEN 未配置")
@@ -90,9 +138,14 @@ def main():
             all_lines.append(f'{task["name"]}：未配置搜索关键词\n')
             continue
         items = fetch_repos(query)
+        # 两层过滤：黑名单 + star区间
+        filtered_items = [
+            r for r in items
+            if (not is_blacklisted(r)) and star_in_range(r)
+        ]
         old_ids = load_old_ids(task["history_file"])
-        new_items = [r for r in items if str(r["id"]) not in old_ids]
-        save_ids(task["history_file"], items)
+        new_items = [r for r in filtered_items if str(r["id"]) not in old_ids]
+        save_ids(task["history_file"], filtered_items)
         all_lines.extend(render_section(task["name"], new_items))
 
     content = "\n".join(all_lines)
@@ -101,6 +154,7 @@ def main():
 
     with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
         f.write(f"mail_body<<EOF\n{content}\nEOF\n")
+
 
 if __name__ == "__main__":
     main()
