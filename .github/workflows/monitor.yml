@@ -2,7 +2,7 @@ name: GitHub新项目监控 邮件推送
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 12 * * *' # UTC12点 = 北京时间20点，可按需调整
+    - cron: '0 12 * * *'
 
 jobs:
   scan:
@@ -53,5 +53,12 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add *.txt || true
-          git diff --quiet && git diff --staged --quiet || { git commit -m "auto update repo history id"; git push; }
+          shopt -s nullglob
+          arr=(*.txt)
+          if (( ${#arr[@]} > 0 ));then
+            git add "${arr[@]}"
+            git commit -m "auto update repo history id" || true
+            git push || true
+          else
+            echo "没有txt文件，跳过提交"
+          fi
