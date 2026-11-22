@@ -35,13 +35,18 @@ jobs:
         uses: actions/setup-python@v7
         with:
           python-version: "3.11"
-          cache: pip
-          cache-dependency-path: requirements.txt
+          # 不配 cache: pip —— 脚本零第三方依赖，没有 requirements.txt，
+          # 配了缓存反而会因为找不到文件报错（这就是之前卡住的原因）
 
-      - name: 安装依赖
+      - name: 离线自测
+        shell: bash
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
+          # 文件没传上去就跳过，不让自测本身成为新的失败点
+          if [ -f selftest.py ]; then
+            python selftest.py
+          else
+            echo "selftest.py 不存在，跳过自测"
+          fi
 
       - name: 检查变量配置
         shell: bash
@@ -61,21 +66,32 @@ jobs:
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
         run: |
           set -uo pipefail
+
+          # 发信四件套缺一个就没法发信，必须硬失败
           fail=0
-          for n in GH_TOKEN EMAIL_USER EMAIL_PASS EMAIL_TO; do
+          for n in EMAIL_USER EMAIL_PASS EMAIL_TO; do
             if [ -z "${!n:-}" ]; then
-              echo "::error::Secret $n 未配置"
+              echo "::error::Secret $n 未配置，邮件发不出去"
               fail=1
             else
               echo "Secret $n 已配置"
             fi
           done
+
+          # GH_TOKEN 只影响配额，不硬失败：没配也能跑（60 次/小时），
+          # 但 Actions 是共享出口 IP，很容易被限流，所以强烈建议配
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::Secret GH_TOKEN 未配置，走未认证配额（60 次/小时），可能被限流"
+          else
+            echo "Secret GH_TOKEN 已配置"
+          fi
+
           for n in SEARCH_QUERY_AGENT SEARCH_QUERY_DOC_PIPELINE SEARCH_QUERY_TABLE \
                    SEARCH_QUERY_RAG_KB SEARCH_QUERY_SCRIPT SEARCH_QUERY_WEB_DESIGN \
                    SEARCH_QUERY_EDUCATION SEARCH_QUERY_LIVE_TOOLS SEARCH_QUERY_OFFICE_AUTO; do
             v="${!n:-}"
             if [ -z "$v" ]; then
-              echo "::warning::变量 $n 为空，将使用脚本内置默认 query"
+              echo "::notice::变量 $n 为空，将使用脚本内置默认 query"
             else
               echo "$n = $v"
             fi
@@ -104,7 +120,8 @@ jobs:
         run: cat out/stats.json
 
       - name: 发送邮件
-        if: steps.gen.outputs.has_new == 'true' || inputs.force_send == true
+        # 全部抓取失败时也要发：否则「监控瞎了」这件事永远没人知道
+        if: steps.gen.outputs.has_new == 'true' || inputs.force_send == true || steps.gen.outputs.fetch_all_failed == 'true'
         uses: dawidd6/action-send-mail@v24
         with:
           server_address: smtp.qq.com
@@ -120,8 +137,16 @@ jobs:
           html_body: file://out/mail.html
 
       - name: 无新增提示
-        if: steps.gen.outputs.has_new != 'true' && inputs.force_send != true
+        if: steps.gen.outputs.has_new != 'true' && inputs.force_send != true && steps.gen.outputs.fetch_all_failed != 'true'
         run: echo "今日无新增项目，已跳过发信"
+
+      # 放在最后：邮件已经发出去了，再让 job 变红，既保证人能收到告警，
+      # 又能在 Actions 页面上看到红色，不会「看起来一切正常但其实瞎了」
+      - name: 监控健康检查
+        if: steps.gen.outputs.fetch_all_failed == 'true'
+        run: |
+          echo "::error::所有分类都抓取失败，请检查 GH_TOKEN 是否过期、Search API 是否被限流"
+          exit 1
 
       # 放在发信之后：历史提交失败不该连累今天的邮件
       - name: 保存历史记录
