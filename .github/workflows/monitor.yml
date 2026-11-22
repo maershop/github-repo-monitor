@@ -27,15 +27,24 @@ jobs:
         run: python3 monitor.py
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          SEARCH_QUERY_AGENT: "agent framework local llm language:python stars:>30"
-          SEARCH_QUERY_DOC_PIPELINE: "document pipeline scrape pdf markdown rag language:python stars:>30"
-          SEARCH_QUERY_TABLE: "excel csv data clean analysis language:python stars:>30"
-          SEARCH_QUERY_RAG_KB: "rag knowledge base webui language:vue OR language:python stars:>30"
-          SEARCH_QUERY_SCRIPT: "short video script agent llm workflow stars:>30 stars:<2500"
-          SEARCH_QUERY_WEB_DESIGN: "cms education landing builder svg editor language:typescript stars:>30"
-          SEARCH_QUERY_EDUCATION: "education volunteer score ranking exam bank vue stars:>30 stars:<2500 pushed:>2025-01-01 -fork:true"
-          SEARCH_QUERY_LIVE_TOOLS: "teleprompter live subtitle dashboard web language:vue stars:>30"
-          SEARCH_QUERY_OFFICE_AUTO: "office automation pdf batch ocr rpa wails stars:>30"
+          SEARCH_QUERY_AGENT: |
+            agent framework local llm language:python stars:>30
+          SEARCH_QUERY_DOC_PIPELINE: |
+            document pipeline scrape pdf markdown rag language:python stars:>30
+          SEARCH_QUERY_TABLE: |
+            excel csv data clean analysis language:python stars:>30
+          SEARCH_QUERY_RAG_KB: |
+            rag knowledge base webui language:vue OR language:python stars:>30
+          SEARCH_QUERY_SCRIPT: |
+            short video script agent llm workflow stars:>30 stars:<2500
+          SEARCH_QUERY_WEB_DESIGN: |
+            cms education landing builder svg editor language:typescript stars:>30
+          SEARCH_QUERY_EDUCATION: |
+            education volunteer score ranking exam bank vue stars:>30 stars:<2500 pushed:>2025-01-01 -fork:true
+          SEARCH_QUERY_LIVE_TOOLS: |
+            teleprompter live subtitle dashboard web language:vue stars:>30
+          SEARCH_QUERY_OFFICE_AUTO: |
+            office automation pdf batch ocr rpa wails stars:>30
 
       - name: Send QQ Email
         uses: dawidd6/action-send-mail@v5
@@ -54,15 +63,12 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          TXT_LIST=$(find . -maxdepth 1 -type f -name "last_*.txt")
-          if [ -n "$TXT_LIST" ]; then
-            git add $TXT_LIST
-            if ! git diff --quiet --staged; then
-              git commit -m "auto update repo history id"
-              git push
-            else
-              echo "历史txt文件无变更，跳过提交"
-            fi
+          find . -maxdepth 1 -type f -name "last_*.txt" | while read -r file; do
+            git add "$file"
+          done
+          if git diff --quiet --staged; then
+            echo "无变更，跳过提交"
           else
-            echo "没有生成历史txt，跳过git操作"
+            git commit -m "auto update repo history id"
+            git push
           fi
