@@ -129,9 +129,15 @@ jobs:
         continue-on-error: true
         run: |
           set -e
+          # 目录或文件不存在时 git add 会直接返回 128（pathspec did not match），
+          # 必须自己先判断，不能指望 git 容错
+          if [ ! -d history ] || [ -z "$(ls -A history 2>/dev/null)" ]; then
+            echo "history 目录不存在或为空，跳过提交"
+            exit 0
+          fi
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add history
+          git add -A history
           if git diff --cached --quiet; then
             echo "历史无变化，跳过提交"
             exit 0
