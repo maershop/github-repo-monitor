@@ -21,6 +21,11 @@ jobs:
       - name: Install requests
         run: python3 -m pip install requests
 
+      - name: Debug打印环境变量（新增！用来确认变量有没有进来）
+        run: |
+          echo "SEARCH_QUERY_AGENT = ${{ vars.SEARCH_QUERY_AGENT }}"
+          echo "SEARCH_QUERY_DOC_PIPELINE = ${{ vars.SEARCH_QUERY_DOC_PIPELINE }}"
+
       - name: 拉取仓库数据，生成邮件正文
         id: gen_content
         run: python3 monitor.py
@@ -49,16 +54,17 @@ jobs:
           from: GitHub监控 <${{ secrets.EMAIL_USER }}>
           body: ${{ steps.gen_content.outputs.mail_body }}
 
-      - name: Commit & Push 历史记录文件
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          shopt -s nullglob
-          arr=(*.txt)
-          if (( ${#arr[@]} > 0 ));then
-            git add "${arr[@]}"
-            git commit -m "auto update repo history id" || true
-            git push || true
-          else
-            echo "没有txt文件，跳过提交"
-          fi
+# 暂时注释掉commit步骤，不再触发128报错，先调试变量
+#      - name: Commit & Push 历史记录文件
+#        run: |
+#          git config --global user.name "github-actions[bot]"
+#          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+#          shopt -s nullglob
+#          arr=(*.txt)
+#          if (( ${#arr[@]} > 0 ));then
+#            git add "${arr[@]}"
+#            git commit -m "auto update repo history id" || true
+#            git push || true
+#          else
+#            echo "没有txt文件，跳过提交"
+#          fi
