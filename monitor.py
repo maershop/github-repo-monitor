@@ -3,17 +3,14 @@ import requests
 
 GH_TOKEN = os.getenv("GH_TOKEN")
 FETCH_COUNT = 30
-# star 区间统一阈值
 MIN_STAR = 30
 MAX_STAR = 2500
 
-# 黑名单：简介、仓库名命中下面任意词直接跳过（小写匹配）
 BLACKLIST_KEYWORDS = {
     "短剧", "红果", "解析", "爬虫", "抓取", "破解", "vip解析",
     "影视解析", "视频抓取", "douyin抓取", "tiktok爬虫"
 }
 
-# 任务配置：新增赛道，对齐你要的方向
 WATCH_TASKS = [
     {
         "name": "一、LLM / Agent 智能体方向",
@@ -64,7 +61,6 @@ WATCH_TASKS = [
 
 
 def is_blacklisted(repo) -> bool:
-    """黑名单过滤，仓库全名 + description小写匹配"""
     text = f"{repo['full_name']} {repo.get('description','')}".lower()
     for kw in BLACKLIST_KEYWORDS:
         if kw in text:
@@ -130,7 +126,6 @@ def main():
         print("错误：GH_TOKEN 未配置")
         exit(1)
 
-    # 调试输出：打印所有搜索query，方便排错
     print("====DEBUG QUERY START====")
     for task in WATCH_TASKS:
         val = os.getenv(task["env_key"])
@@ -140,12 +135,12 @@ def main():
     all_lines = ["GitHub新项目监控日报", "=" * 40, ""]
 
     for task in WATCH_TASKS:
-        query = os.getenv(task["env_key"])
+        raw_val = os.getenv(task["env_key"])
+        query = raw_val.strip() if raw_val else ""
         if not query:
             all_lines.append(f'{task["name"]}：未配置搜索关键词\n')
             continue
         items = fetch_repos(query)
-        # 两层过滤：黑名单 + star区间
         filtered_items = [
             r for r in items
             if (not is_blacklisted(r)) and star_in_range(r)
