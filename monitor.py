@@ -130,6 +130,13 @@ def main():
         print("错误：GH_TOKEN 未配置")
         exit(1)
 
+    # 调试输出：打印所有搜索query，方便排错
+    print("====DEBUG QUERY START====")
+    for task in WATCH_TASKS:
+        val = os.getenv(task["env_key"])
+        print(f"{task['env_key']} = {repr(val)}")
+    print("====DEBUG QUERY END====")
+
     all_lines = ["GitHub新项目监控日报", "=" * 40, ""]
 
     for task in WATCH_TASKS:
