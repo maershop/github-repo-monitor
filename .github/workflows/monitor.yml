@@ -1,74 +1,150 @@
-name: GitHub新项目监控 邮件推送
+name: GitHub 新项目监控日报
+
 on:
   workflow_dispatch:
+    inputs:
+      force_send:
+        description: "今日无新增也强制发信"
+        type: boolean
+        default: false
   schedule:
-    - cron: '0 12 * * *'
+    # cron 是 UTC。12:00 UTC = 20:00 北京时间
+    - cron: "0 12 * * *"
+
+# 提交历史文件需要写权限；默认是只读，这就是之前 git push 128 的主因
+permissions:
+  contents: write
+
+concurrency:
+  group: gh-monitor
+  cancel-in-progress: false
 
 jobs:
   scan:
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
+      - name: 拉取仓库
+        uses: actions/checkout@v7
         with:
           persist-credentials: true
-          fetch-depth: 0
+          fetch-depth: 1
 
-      - name: Setup Python
-        uses: actions/setup-python@v6
+      - name: 配置 Python
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
 
-      - name: Install requests
-        run: python3 -m pip install requests
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
 
-      - name: Run monitor script
-        id: gen_content
-        run: python3 monitor.py
+      - name: 检查变量配置
+        shell: bash
+        env:
+          SEARCH_QUERY_AGENT: ${{ vars.SEARCH_QUERY_AGENT }}
+          SEARCH_QUERY_DOC_PIPELINE: ${{ vars.SEARCH_QUERY_DOC_PIPELINE }}
+          SEARCH_QUERY_TABLE: ${{ vars.SEARCH_QUERY_TABLE }}
+          SEARCH_QUERY_RAG_KB: ${{ vars.SEARCH_QUERY_RAG_KB }}
+          SEARCH_QUERY_SCRIPT: ${{ vars.SEARCH_QUERY_SCRIPT }}
+          SEARCH_QUERY_WEB_DESIGN: ${{ vars.SEARCH_QUERY_WEB_DESIGN }}
+          SEARCH_QUERY_EDUCATION: ${{ vars.SEARCH_QUERY_EDUCATION }}
+          SEARCH_QUERY_LIVE_TOOLS: ${{ vars.SEARCH_QUERY_LIVE_TOOLS }}
+          SEARCH_QUERY_OFFICE_AUTO: ${{ vars.SEARCH_QUERY_OFFICE_AUTO }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        run: |
+          set -uo pipefail
+          fail=0
+          for n in GH_TOKEN EMAIL_USER EMAIL_PASS EMAIL_TO; do
+            if [ -z "${!n:-}" ]; then
+              echo "::error::Secret $n 未配置"
+              fail=1
+            else
+              echo "Secret $n 已配置"
+            fi
+          done
+          for n in SEARCH_QUERY_AGENT SEARCH_QUERY_DOC_PIPELINE SEARCH_QUERY_TABLE \
+                   SEARCH_QUERY_RAG_KB SEARCH_QUERY_SCRIPT SEARCH_QUERY_WEB_DESIGN \
+                   SEARCH_QUERY_EDUCATION SEARCH_QUERY_LIVE_TOOLS SEARCH_QUERY_OFFICE_AUTO; do
+            v="${!n:-}"
+            if [ -z "$v" ]; then
+              echo "::warning::变量 $n 为空，将使用脚本内置默认 query"
+            else
+              echo "$n = $v"
+            fi
+          done
+          exit $fail
+
+      - name: 抓取并生成邮件正文
+        id: gen
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          SEARCH_QUERY_AGENT: |
-            agent framework local llm language:python stars:>30
-          SEARCH_QUERY_DOC_PIPELINE: |
-            document pipeline scrape pdf markdown rag language:python stars:>30
-          SEARCH_QUERY_TABLE: |
-            excel csv data clean analysis language:python stars:>30
-          SEARCH_QUERY_RAG_KB: |
-            rag knowledge base webui language:vue OR language:python stars:>30
-          SEARCH_QUERY_SCRIPT: |
-            short video script agent llm workflow stars:>30 stars:<2500
-          SEARCH_QUERY_WEB_DESIGN: |
-            cms education landing builder svg editor language:typescript stars:>30
-          SEARCH_QUERY_EDUCATION: |
-            education volunteer score ranking exam bank vue stars:>30 stars:<2500 pushed:>2025-01-01 -fork:true
-          SEARCH_QUERY_LIVE_TOOLS: |
-            teleprompter live subtitle dashboard web language:vue stars:>30
-          SEARCH_QUERY_OFFICE_AUTO: |
-            office automation pdf batch ocr rpa wails stars:>30
+          SEARCH_QUERY_AGENT: ${{ vars.SEARCH_QUERY_AGENT }}
+          SEARCH_QUERY_DOC_PIPELINE: ${{ vars.SEARCH_QUERY_DOC_PIPELINE }}
+          SEARCH_QUERY_TABLE: ${{ vars.SEARCH_QUERY_TABLE }}
+          SEARCH_QUERY_RAG_KB: ${{ vars.SEARCH_QUERY_RAG_KB }}
+          SEARCH_QUERY_SCRIPT: ${{ vars.SEARCH_QUERY_SCRIPT }}
+          SEARCH_QUERY_WEB_DESIGN: ${{ vars.SEARCH_QUERY_WEB_DESIGN }}
+          SEARCH_QUERY_EDUCATION: ${{ vars.SEARCH_QUERY_EDUCATION }}
+          SEARCH_QUERY_LIVE_TOOLS: ${{ vars.SEARCH_QUERY_LIVE_TOOLS }}
+          SEARCH_QUERY_OFFICE_AUTO: ${{ vars.SEARCH_QUERY_OFFICE_AUTO }}
+          HISTORY_DIR: history
+          OUT_DIR: out
+        run: python monitor.py
 
-      - name: Send QQ Email
-        uses: dawidd6/action-send-mail@v5
+      - name: 统计预览
+        run: cat out/stats.json
+
+      - name: 发送邮件
+        if: steps.gen.outputs.has_new == 'true' || inputs.force_send == true
+        uses: dawidd6/action-send-mail@v24
         with:
           server_address: smtp.qq.com
           server_port: 465
           secure: true
           username: ${{ secrets.EMAIL_USER }}
           password: ${{ secrets.EMAIL_PASS }}
-          subject: GitHub新项目监控日报
+          subject: GitHub 新项目监控日报 ${{ steps.gen.outputs.subject_date }}
           to: ${{ secrets.EMAIL_TO }}
-          from: GitHub监控 <${{ secrets.EMAIL_USER }}>
-          body: ${{ steps.gen_content.outputs.mail_body }}
+          from: GitHub 监控 <${{ secrets.EMAIL_USER }}>
+          # 直接读文件，不要把整段 HTML 塞进 output 再传参：
+          # output 有长度和转义风险，file:// 是 action 官方支持的方式
+          html_body: file://out/mail.html
 
-      - name: Commit and save history txt files
+      - name: 无新增提示
+        if: steps.gen.outputs.has_new != 'true' && inputs.force_send != true
+        run: echo "今日无新增项目，已跳过发信"
+
+      # 放在发信之后：历史提交失败不该连累今天的邮件
+      - name: 保存历史记录
+        if: steps.gen.outputs.has_new == 'true'
+        continue-on-error: true
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          find . -maxdepth 1 -type f -name "last_*.txt" | while read -r file; do
-            git add "$file"
-          done
-          if git diff --quiet --staged; then
-            echo "无变更，跳过提交"
-          else
-            git commit -m "auto update repo history id"
-            git push
+          set -e
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add history
+          if git diff --cached --quiet; then
+            echo "历史无变化，跳过提交"
+            exit 0
           fi
+          git commit -m "chore: update repo history [skip ci]"
+          # 并发或远端已变，先 rebase 再推，避免 non-fast-forward 128
+          git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
+          git push
+
+      - name: 保留本次结果
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: monitor-result-${{ github.run_id }}
+          path: out/
+          retention-days: 7
